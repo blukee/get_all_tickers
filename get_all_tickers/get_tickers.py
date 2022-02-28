@@ -11,11 +11,10 @@ _SECTORS_LIST = set(['Consumer Non-Durables', 'Capital Goods', 'Health Care',
        'Consumer Durables', 'Transportation'])
 
 
-# headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df
 headers = {
     'authority': 'api.nasdaq.com',
     'accept': 'application/json, text/plain, */*',
-    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36',
     'origin': 'https://www.nasdaq.com',
     'sec-fetch-site': 'same-site',
     'sec-fetch-mode': 'cors',
@@ -28,18 +27,24 @@ def params(exchange):
     return (
         ('letter', '0'),
         ('exchange', exchange),
-        ('download', 'true'),
+        ('render', 'download'),
     )
+
+params = (
+    ('tableonly', 'true'),
+    ('limit', '25'),
+    ('offset', '0'),
+    ('download', 'true'),
+)
 
 def params_region(region):
     return (
         ('letter', '0'),
         ('region', region),
-        ('download', 'true'),
+        ('render', 'download'),
     )
 
-# I know it's weird to have Sectors as constants, yet the Regions as enums, but
-# it makes the most sense to me
+
 class Region(Enum):
     AFRICA = 'AFRICA'
     EUROPE = 'EUROPE'
@@ -64,7 +69,6 @@ class SectorConstants:
     TRANSPORT = 'Transportation'
 
 
-# get tickers from chosen exchanges (default all) as a list
 def get_tickers(NYSE=True, NASDAQ=True, AMEX=True):
     tickers_list = []
     if NYSE:
@@ -90,7 +94,7 @@ def get_biggest_n_tickers(top_n, sectors=None):
         df = pd.concat([df, temp])
         
     df = df.dropna(subset={'marketCap'})
-    df = df[~df['symbol'].str.contains("\.|\^")]
+    df = df[~df['Symbol'].str.contains("\.|\^")]
 
     if sectors is not None:
         if isinstance(sectors, str):
@@ -113,7 +117,7 @@ def get_biggest_n_tickers(top_n, sectors=None):
     if top_n > len(df):
         raise ValueError('Not enough companies, please specify a smaller top_n')
 
-    return df.iloc[:top_n]['symbol'].tolist()
+    return df.iloc[:top_n]['Symbol'].tolist()
 
 
 def get_tickers_by_region(region):
@@ -127,18 +131,16 @@ def get_tickers_by_region(region):
         raise ValueError('Please enter a valid region (use a Region.REGION as the argument, e.g. Region.AFRICA)')
 
 def __exchange2df(exchange):
-    r = requests.get('https://api.nasdaq.com/api/screener/stocks', headers=headers, params=params(exchange))
+    r = requests.get('https://api.nasdaq.com/api/screener/stocks', headers=headers, params=params)
     data = r.json()['data']
     df = pd.DataFrame(data['rows'], columns=data['headers'])
     return df
 
 def __exchange2list(exchange):
     df = __exchange2df(exchange)
-    # removes weird tickers
     df_filtered = df[~df['symbol'].str.contains("\.|\^")]
     return df_filtered['symbol'].tolist()
 
-# market caps are in millions
 def __exchange2list_filtered(exchange, mktcap_min=None, mktcap_max=None, sectors=None):
     df = __exchange2df(exchange)
     df = df.dropna(subset={'marketCap'})
@@ -168,8 +170,6 @@ def __exchange2list_filtered(exchange, mktcap_min=None, mktcap_max=None, sectors
         df = df[df['marketCap'] < mktcap_max]
     return df['symbol'].tolist()
 
-
-# save the tickers to a CSV
 def save_tickers(NYSE=True, NASDAQ=True, AMEX=True, filename='tickers.csv'):
     tickers2save = get_tickers(NYSE, NASDAQ, AMEX)
     df = pd.DataFrame(tickers2save)
@@ -183,11 +183,9 @@ def save_tickers_by_region(region, filename='tickers_by_region.csv'):
 
 if __name__ == '__main__':
 
-    # tickers of all exchanges
     tickers = get_tickers()
     print(tickers[:5])
 
-    # tickers from NYSE and NASDAQ only
     tickers = get_tickers(AMEX=False)
 
     # default filename is tickers.csv, to specify, add argument filename='yourfilename.csv'
@@ -218,4 +216,3 @@ if __name__ == '__main__':
     # get tickers of 5 largest companies by market cap (specify sectors=SECTOR)
     top_5 = get_biggest_n_tickers(5)
     print(top_5)
-
